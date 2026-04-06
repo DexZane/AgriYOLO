@@ -67,6 +67,7 @@ flowchart TD
 |   |-- models/                    # YOLO / YOLOv10 封装
 |   `-- nn/modules/                # 自定义模块、检测头与 TAL-FFN
 |-- experiments/                   # 消融、SOTA 对比与测速脚本
+|-- scripts/                       # train / val / benchmark shell 入口
 |-- visualize/                     # 可视化脚本
 |-- tests/                         # 回归测试
 |-- requirements.txt
@@ -98,6 +99,26 @@ pip install -r requirements.txt
 
 ### 1. 训练 AgriYOLO
 
+使用 shell 入口：
+
+```bash
+bash scripts/train.sh
+```
+
+需要时可通过环境变量覆盖默认值：
+
+```bash
+MODEL=ultralytics/cfg/models/v10/yolov10s_TAL_FFN.yaml \
+DATA=path/to/data.yaml \
+EPOCHS=150 \
+IMGSZ=640 \
+BATCH=16 \
+DEVICE=0 \
+bash scripts/train.sh
+```
+
+Python 等价写法：
+
 ```python
 from ultralytics import YOLOv10
 
@@ -112,6 +133,14 @@ model.train(
 ```
 
 ### 2. 验证训练后的权重
+
+使用 shell 入口：
+
+```bash
+MODEL=path/to/best.pt DATA=path/to/data.yaml SPLIT=test DEVICE=0 bash scripts/val.sh
+```
+
+Python 等价写法：
 
 ```python
 from ultralytics import YOLOv10
@@ -181,6 +210,14 @@ python experiments/run_sota_comparison.py --data path/to/data.yaml --epochs 150 
 - 将对比曲线输出到 `picture/`
 
 ### 速度基准
+
+优先使用 shell 入口：
+
+```bash
+bash scripts/benchmark.sh
+```
+
+也可以直接调用 Python 脚本：
 
 ```bash
 python experiments/speed_benchmark.py --device 0 --imgsz 640 --warmup 10 --iterations 50

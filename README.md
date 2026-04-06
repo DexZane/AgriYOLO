@@ -67,6 +67,7 @@ Main components:
 |   |-- models/                    # YOLO / YOLOv10 wrappers
 |   `-- nn/modules/                # Custom layers, head, and TAL-FFN implementation
 |-- experiments/                   # Repro scripts for ablation, SOTA eval, and speed tests
+|-- scripts/                       # Shell entrypoints for train, val, and benchmark
 |-- visualize/                     # Optional plotting and visualization scripts
 |-- tests/                         # Regression tests for architecture-level fixes
 |-- requirements.txt               # Python dependencies
@@ -98,7 +99,25 @@ Run commands from the repository root so Python imports the local `ultralytics/`
 
 ### 1. Train AgriYOLO
 
-Use the TAL-FFN model config:
+Use the shell entrypoint:
+
+```bash
+bash scripts/train.sh
+```
+
+Override defaults with environment variables when needed:
+
+```bash
+MODEL=ultralytics/cfg/models/v10/yolov10s_TAL_FFN.yaml \
+DATA=path/to/data.yaml \
+EPOCHS=150 \
+IMGSZ=640 \
+BATCH=16 \
+DEVICE=0 \
+bash scripts/train.sh
+```
+
+Python equivalent:
 
 ```python
 from ultralytics import YOLOv10
@@ -114,6 +133,14 @@ model.train(
 ```
 
 ### 2. Validate a Trained Checkpoint
+
+Use the shell entrypoint:
+
+```bash
+MODEL=path/to/best.pt DATA=path/to/data.yaml SPLIT=test DEVICE=0 bash scripts/val.sh
+```
+
+Python equivalent:
 
 ```python
 from ultralytics import YOLOv10
@@ -184,6 +211,12 @@ What it does:
 - Generates comparison curves under `picture/`
 
 ### Speed Benchmark
+
+```bash
+bash scripts/benchmark.sh
+```
+
+Or call the Python script directly:
 
 ```bash
 python experiments/speed_benchmark.py --device 0 --imgsz 640 --warmup 10 --iterations 50

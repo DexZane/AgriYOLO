@@ -2021,4 +2021,5 @@ map:
   n15075141: toilet_tissue
 
 # Download script/URL (optional)
-download: yolo/data/scripts/get_imagenet.sh
+# ImageNet must be prepared manually before use.
+download:
