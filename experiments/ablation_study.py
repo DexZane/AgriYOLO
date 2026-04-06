@@ -52,7 +52,7 @@ EXPERIMENTS = [
     ("Stage4_CADFM",          "yolov10s_P2_CADFM.yaml",         False, False),
 
     # Stage 5: TAL-FFN Full - 完整版 (添加深度可分离卷积 DSConv)
-    ("Stage5_TAL_FFN_Full",   "yolov10s_TAL_FFN.yaml",          True,  False),
+    ("Stage5_TAL_FFN_Full",   "yolov10s_TAL_FFN.yaml",          False, False),
 ]
 
 # 训练通用配置
@@ -65,6 +65,8 @@ TRAIN_CFG = {
     "batch": 16,
     "project": "TAL_FFN_Ablation",  # 更新项目名称为TAL-FFN
     "optimizer": "AdamW",
+    "lr0": 0.002,
+    "warmup_bias_lr": 0.0,
     # 新增：保存详细结果用于可视化
     "save": True,
     "save_period": -1,  # 只保存最佳模型

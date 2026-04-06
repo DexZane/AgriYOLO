@@ -1,333 +1,345 @@
 """
-Comprehensive SOTA Model Comparison Suite (Fine-grained for Small Objects)
--------------------------------------------------------------------------
-Purpose:
-    Compares TAL-FFN (Task-driven Asymmetric Lightweight Feature Fusion Network)
-    against an extensive list of SOTA object detection models using local YAML
-    configurations to ensure training from scratch.
-    Specifically reports mAP_small metrics for SCI publication evidence.
+Comprehensive SOTA model comparison with full-split COCO-style evaluation.
 
-Models Included (All trained from scratch):
-    - TAL-FFN (Ours) - YOLOv10s with TAL-FFN module
-    - YOLOv10s (Baseline)
-    - YOLOv8s
-    - YOLOv9c
-    - YOLOv5s
-    - RT-DETR-l
-
-Usage:
-    python experiments/run_sota_comparison.py
-
-Note:
-    Must be run from the project root directory.
+This script trains a set of detector variants and evaluates them on the full
+YOLO test split. Ground-truth JSON is generated from every test image, using
+the original image sizes, so missed detections remain part of the evaluation.
 """
 
+import argparse
+import glob
+import json
 import os
 import sys
+from pathlib import Path
 
-# Fix for Windows MKL/Fortran Runtime Error (OMP: Error #15 or forrtl: error 200)
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 
-import json
-import yaml
-import pandas as pd
-import glob
 import matplotlib
-# Force non-interactive backend to avoid GUI crashes
-matplotlib.use('Agg')
+
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+import pandas as pd
 import seaborn as sns
-from pycocotools.coco import COCO
-from pycocotools.cocoeval import COCOeval
+import yaml
+from PIL import Image
 
-# Ensure local 'ultralytics' is used (Must be before any ultralytics imports!)
-root_path = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-if root_path not in sys.path:
-    sys.path.insert(0, root_path)
 
-from ultralytics import YOLO, RTDETR, YOLOv10
-    
-# --- Helper Functions (Small Map Evaluation Logic) ---
-def xywhn2xywh(x, y, w, h, W, H):
-    return x * W, y * H, w * W, h * H
+ROOT_PATH = Path(__file__).resolve().parents[1]
+if str(ROOT_PATH) not in sys.path:
+    sys.path.insert(0, str(ROOT_PATH))
 
-def xywh2xywh_topleft(x, y, w, h):
+from ultralytics import RTDETR, YOLO, YOLOv10
+
+
+IMAGE_SUFFIXES = {".bmp", ".dng", ".jpeg", ".jpg", ".mpo", ".png", ".tif", ".tiff", ".webp"}
+
+
+def xywhn_to_xywh(x, y, w, h, width, height):
+    return x * width, y * height, w * width, h * height
+
+
+def xywh_center_to_topleft(x, y, w, h):
     return x - w / 2, y - h / 2, w, h
 
-def generate_gt_json(data_yaml_path, image_ids_in_pred, output_json="gt.json"):
-    """Generates COCO GT JSON from YOLO labels for precision evaluation"""
-    with open(data_yaml_path, 'r', encoding='utf-8') as f:
-        cfg = yaml.safe_load(f)
-    
-    # Path logic based on Agri dataset structure
-    base_path = cfg.get('path', './data/Crop')
-    test_labels_path = os.path.join(base_path, "test", "labels")
-    
-    coco_data = {"images": [], "annotations": [], "categories": []}
-    
-    # 1. Categories
-    names = cfg.get('names', {})
-    # Handle case where names is a list (common in official YOLO configs)
-    if isinstance(names, list):
-        names = {i: n for i, n in enumerate(names)}
-        
-    for k, v in names.items():
-        coco_data["categories"].append({"id": int(k), "name": v})
-            
-    # 2. Images & Annotations
-    ann_id = 1
-    # Assuming standard resolution used in training for consistency in metric calc
-    img_w, img_h = 640, 640 
-    
-    for img_id in image_ids_in_pred:
-        txt_path = os.path.join(test_labels_path, f"{img_id}.txt")
-        coco_data["images"].append({
-            "id": img_id,
-            "file_name": f"{img_id}.jpg",
-            "height": img_h,
-            "width": img_w
-        })
 
-        if os.path.exists(txt_path):
-            with open(txt_path, 'r', encoding='utf-8') as f:
-                for line in f.readlines():
-                    parts = line.strip().split()
-                    if len(parts) >= 5:
-                        cls_id = int(parts[0])
-                        x_c, y_c, w, h = xywhn2xywh(float(parts[1]), float(parts[2]), float(parts[3]), float(parts[4]), img_w, img_h)
-                        x1, y1, w, h = xywh2xywh_topleft(x_c, y_c, w, h)
-                        coco_data["annotations"].append({
-                            "id": ann_id,
-                            "image_id": img_id,
-                            "category_id": cls_id,
-                            "bbox": [x1, y1, w, h],
-                            "area": w * h,
-                            "iscrowd": 0
-                        })
-                        ann_id += 1
-    
-    with open(output_json, 'w', encoding='utf-8') as f:
+def resolve_path(data_yaml_path, path_value, base_path=None):
+    path = Path(path_value)
+    if path.is_absolute():
+        return path
+    root = Path(base_path) if base_path else Path(data_yaml_path).resolve().parent
+    return (root / path).resolve()
+
+
+def list_split_images(data_yaml_path, split="test"):
+    with open(data_yaml_path, "r", encoding="utf-8") as f:
+        cfg = yaml.safe_load(f)
+
+    base_path = resolve_path(data_yaml_path, cfg.get("path", "."), None) if cfg.get("path") else Path(data_yaml_path).resolve().parent
+    split_entry = cfg.get(split) or cfg.get("val")
+    if split_entry is None:
+        raise KeyError(f"Split '{split}' not found in {data_yaml_path}")
+    if isinstance(split_entry, (list, tuple)):
+        raise TypeError(f"Split '{split}' must resolve to a single path, got {type(split_entry).__name__}")
+
+    split_path = resolve_path(data_yaml_path, split_entry, base_path)
+    if split_path.is_dir():
+        image_files = sorted(path for path in split_path.rglob("*") if path.suffix.lower() in IMAGE_SUFFIXES)
+    elif split_path.suffix.lower() == ".txt":
+        image_files = []
+        for line in split_path.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            image_path = Path(line)
+            if not image_path.is_absolute():
+                image_path = (split_path.parent / image_path).resolve()
+            image_files.append(image_path)
+    else:
+        image_files = [split_path]
+    return cfg, image_files
+
+
+def image_id_from_path(image_path):
+    stem = Path(image_path).stem
+    return int(stem) if stem.isnumeric() else stem
+
+
+def label_path_from_image(image_path):
+    image_path = Path(image_path)
+    parts = list(image_path.parts)
+    if "images" in parts:
+        index = len(parts) - 1 - parts[::-1].index("images")
+        parts[index] = "labels"
+        return Path(*parts).with_suffix(".txt")
+    return image_path.with_suffix(".txt")
+
+
+def generate_gt_json(data_yaml_path, split="test", output_json="gt.json"):
+    """Generate a COCO-style GT file from the full YOLO split."""
+    cfg, image_files = list_split_images(data_yaml_path, split=split)
+    coco_data = {"images": [], "annotations": [], "categories": []}
+
+    names = cfg.get("names", {})
+    if isinstance(names, list):
+        names = {i: name for i, name in enumerate(names)}
+    for key, value in names.items():
+        coco_data["categories"].append({"id": int(key), "name": value})
+
+    ann_id = 1
+    for image_path in image_files:
+        image_path = Path(image_path)
+        image_id = image_id_from_path(image_path)
+        with Image.open(image_path) as image:
+            width, height = image.size
+
+        coco_data["images"].append(
+            {
+                "id": image_id,
+                "file_name": image_path.name,
+                "height": height,
+                "width": width,
+            }
+        )
+
+        label_path = label_path_from_image(image_path)
+        if not label_path.exists():
+            continue
+
+        with open(label_path, "r", encoding="utf-8") as f:
+            for line in f:
+                parts = line.strip().split()
+                if len(parts) < 5:
+                    continue
+                cls_id = int(parts[0])
+                x_c, y_c, w, h = xywhn_to_xywh(
+                    float(parts[1]), float(parts[2]), float(parts[3]), float(parts[4]), width, height
+                )
+                x1, y1, w, h = xywh_center_to_topleft(x_c, y_c, w, h)
+                coco_data["annotations"].append(
+                    {
+                        "id": ann_id,
+                        "image_id": image_id,
+                        "category_id": cls_id,
+                        "bbox": [x1, y1, w, h],
+                        "area": w * h,
+                        "iscrowd": 0,
+                    }
+                )
+                ann_id += 1
+
+    with open(output_json, "w", encoding="utf-8") as f:
         json.dump(coco_data, f)
     return output_json
 
+
 def evaluate_small_objects(weight_path, model_name, data_yaml_path):
-    """Rigorous small object evaluation using pycocotools"""
-    print(f"📊 Running fine-grained evaluation for {model_name}...")
-    
-    # Determine model class based on name
+    """Evaluate a model on the full test split using pycocotools."""
+    from pycocotools.coco import COCO
+    from pycocotools.cocoeval import COCOeval
+
+    print(f"Running fine-grained evaluation for {model_name}...")
+
     if "rtdetr" in model_name.lower():
         model = RTDETR(weight_path)
     elif "v10" in model_name.lower() or "agriyolo" in model_name.lower():
         model = YOLOv10(weight_path)
     else:
         model = YOLO(weight_path)
-        
-    project_run = f"runs/sota_eval/{model_name}"
-    # plots=True forces YOLO to generate PR curves and Confusion Matrices
-    model.val(data=data_yaml_path, split='test', save_json=True, plots=True, verbose=False, project=project_run, name="val")
-    
-    pred_json = os.path.join(project_run, "val", "predictions.json")
-    if not os.path.exists(pred_json):
+
+    project_run = Path("runs") / "sota_eval" / model_name
+    model.val(data=data_yaml_path, split="test", save_json=True, plots=True, verbose=False, project=str(project_run), name="val")
+
+    pred_json = project_run / "val" / "predictions.json"
+    if not pred_json.exists():
         return {"Model": model_name, "mAP50": 0, "mAP50-95": 0, "mAP_small": 0}
 
-    with open(pred_json, 'r', encoding='utf-8') as f:
+    with open(pred_json, "r", encoding="utf-8") as f:
         preds = json.load(f)
-    pred_image_ids = list(set([p['image_id'] for p in preds]))
+    if not preds:
+        return {"Model": model_name, "mAP50": 0, "mAP50-95": 0, "mAP_small": 0}
 
-    gt_json = os.path.join(project_run, "gt_temp.json")
-    generate_gt_json(data_yaml_path, pred_image_ids, gt_json)
-    
+    gt_json = project_run / "gt_temp.json"
+    generate_gt_json(data_yaml_path, split="test", output_json=str(gt_json))
+
     try:
-        cocoGt = COCO(gt_json)
-        cocoDt = cocoGt.loadRes(pred_json)
-        cocoEval = COCOeval(cocoGt, cocoDt, 'bbox')
-        cocoEval.evaluate()
-        cocoEval.accumulate()
-        cocoEval.summarize()
-        
+        coco_gt = COCO(str(gt_json))
+        coco_dt = coco_gt.loadRes(str(pred_json))
+        coco_eval = COCOeval(coco_gt, coco_dt, "bbox")
+        coco_eval.params.imgIds = [img["id"] for img in coco_gt.dataset["images"]]
+        coco_eval.evaluate()
+        coco_eval.accumulate()
+        coco_eval.summarize()
         return {
             "Model": model_name,
-            "mAP50": cocoEval.stats[1],
-            "mAP50-95": cocoEval.stats[0],
-            "mAP_small": cocoEval.stats[3]
+            "mAP50": coco_eval.stats[1],
+            "mAP50-95": coco_eval.stats[0],
+            "mAP_small": coco_eval.stats[3],
         }
-    except Exception as e:
-        print(f"❌ Evaluation failed for {model_name}: {e}")
+    except Exception as exc:
+        print(f"Evaluation failed for {model_name}: {exc}")
         return {"Model": model_name, "mAP50": 0, "mAP50-95": 0, "mAP_small": 0}
 
+
 def plot_sota_curves(output_root):
-    """Generates comparative training curves for all SOTA models"""
-    print("\n📈 Generating SOTA Comparison Charts...")
+    """Generate comparative training curves for all SOTA models."""
+    print("\nGenerating SOTA comparison charts...")
     sns.set_theme(style="whitegrid", context="paper", font_scale=1.2)
-    
+
     csv_paths = glob.glob(os.path.join(output_root, "*", "results.csv"))
     if not csv_paths:
-        print("⚠️ No results.csv found for plotting.")
+        print("No results.csv found for plotting.")
         return
 
     plt.figure(figsize=(10, 6))
     for csv_file in csv_paths:
         model_name = os.path.basename(os.path.dirname(csv_file))
-        
-        # [NEW] Explicitly exclude RT-DETR as requested
         if "rtdetr" in model_name.lower():
             continue
 
         df = pd.read_csv(csv_file)
-        df.columns = [c.strip() for c in df.columns]
-        
-        # Determine mAP column
-        map_col = next((c for c in df.columns if "mAP50-95" in c), None)
+        df.columns = [column.strip() for column in df.columns]
+        map_col = next((column for column in df.columns if "mAP50-95" in column), None)
         if map_col:
             sns.lineplot(x=df["epoch"], y=df[map_col], label=model_name, linewidth=2)
-    
+
     plt.title("SOTA Models Training Progress (mAP50-95)", fontsize=15)
     plt.xlabel("Epoch")
     plt.ylabel("mAP50-95")
-    plt.legend(title="Models", loc='lower right')
+    plt.legend(title="Models", loc="lower right")
     plt.tight_layout()
-    
-    save_dir = "picture"
-    os.makedirs(save_dir, exist_ok=True)
-    
-    # Save in high-res vector formats
-    plt.savefig(os.path.join(save_dir, "sota_comparison_curve.pdf"), format='pdf', bbox_inches='tight')
-    plt.savefig(os.path.join(save_dir, "sota_comparison_curve.svg"), format='svg', bbox_inches='tight')
-    plt.savefig(os.path.join(save_dir, "sota_comparison_curve.png"), dpi=300, bbox_inches='tight')
-    print(f"✅ SOTA comparison curves saved to {save_dir}: .pdf, .svg, .png")
+
+    save_dir = Path("picture")
+    save_dir.mkdir(exist_ok=True)
+    plt.savefig(save_dir / "sota_comparison_curve.pdf", format="pdf", bbox_inches="tight")
+    plt.savefig(save_dir / "sota_comparison_curve.svg", format="svg", bbox_inches="tight")
+    plt.savefig(save_dir / "sota_comparison_curve.png", dpi=300, bbox_inches="tight")
+    print(f"SOTA comparison curves saved to {save_dir}: .pdf, .svg, .png")
     plt.close()
 
-# --- Main Suite ---
-def main():
-    # 统一使用根目录下的数据配置
-    DATA_YAML = r"E:\Desktop\datasets\Crop\data.yaml"
-    EPOCHS = 150
-    IMG_SIZE = 640
-    DEVICE = 0
-    OUTPUT_ROOT = "SOTA_Comparisons"
 
-    # --- 对比模型列表 (使用预训练权重以加速收敛 - Transfer Learning) ---
-    # 注意：AgriYOLO 将加载 YOLOv10s 的权重作为基础 (Partial Load)
-    COMPETITORS = [
-        # Our Model (Custom Arch + Pretrained Weights)
+def parse_args():
+    parser = argparse.ArgumentParser(description="Train and evaluate SOTA detection models.")
+    parser.add_argument("--data", default="data/Crop/data.yaml", help="Path to the YOLO dataset yaml.")
+    parser.add_argument("--epochs", type=int, default=150, help="Training epochs.")
+    parser.add_argument("--imgsz", type=int, default=640, help="Training image size.")
+    parser.add_argument("--device", default="0", help="Training device, e.g. 0 or cpu.")
+    parser.add_argument("--output-root", default="SOTA_Comparisons", help="Directory used to store training runs.")
+    return parser.parse_args()
+
+
+def main(args):
+    competitors = [
         {
-            "name": "AgriYOLO", 
-            "cfg": "ultralytics/cfg/models/v10/yolov10_agriyolo_full.yaml", 
-            "weights": "yolov10s.pt", 
-            "type": "v10"
-        },
-        
-        # Baselines (Official Pretrained Weights)
-        {
-            "name": "YOLOv10s", 
-            "cfg": "ultralytics/cfg/models/v10/yolov10s.yaml", 
-            "weights": "yolov10s.pt", 
-            "type": "v10"
-        },
-        {
-            "name": "YOLOv8s",  
-            "cfg": "ultralytics/cfg/models/v8/yolov8.yaml",    
-            "weights": "yolov8s.pt",    
-            "type": "v8"
+            "name": "AgriYOLO",
+            "cfg": "ultralytics/cfg/models/v10/yolov10s_TAL_FFN.yaml",
+            "weights": "yolov10s.pt",
+            "type": "v10",
         },
         {
-            "name": "YOLOv9c",  
-            "cfg": "ultralytics/cfg/models/v9/yolov9c.yaml",   
-            "weights": "yolov9c.pt",    
-            "type": "v9"
+            "name": "YOLOv10s",
+            "cfg": "ultralytics/cfg/models/v10/yolov10s_baseline.yaml",
+            "weights": "yolov10s.pt",
+            "type": "v10",
         },
         {
-            "name": "YOLOv5s",  
-            "cfg": "ultralytics/cfg/models/v5/yolov5.yaml",    
-            "weights": "yolov5su.pt",   # Ultralytics uses v5su by default
-            "type": "v5"
+            "name": "YOLOv8s",
+            "cfg": "ultralytics/cfg/models/v8/yolov8.yaml",
+            "weights": "yolov8s.pt",
+            "type": "v8",
         },
-        # {
-        #     "name": "RT_DETR_l",
-        #     "cfg": "ultralytics/cfg/models/rt-detr/rtdetr-l.yaml", 
-        #     "weights": "rtdetr-l.pt", 
-        #     "type": "rtdetr"
-        # }
+        {
+            "name": "YOLOv9c",
+            "cfg": "ultralytics/cfg/models/v9/yolov9c.yaml",
+            "weights": "yolov9c.pt",
+            "type": "v9",
+        },
+        {
+            "name": "YOLOv5s",
+            "cfg": "ultralytics/cfg/models/v5/yolov5.yaml",
+            "weights": "yolov5su.pt",
+            "type": "v5",
+        },
     ]
 
     summary_list = []
-
-    for m in COMPETITORS:
-        print(f"\n" + "="*50 + f"\n🚀 Processing {m['name']} (Transfer Learning)\n" + "="*50)
-        
-        # 1. 初始化模型 (优先加载预训练权重)
+    for competitor in competitors:
+        print("\n" + "=" * 50 + f"\nProcessing {competitor['name']} (transfer learning)\n" + "=" * 50)
         try:
-            if m["name"] == "AgriYOLO":
-                # 对于 AgriYOLO，先加载结构，再加载权重 (Partial Load)
-                print(f"👉 Loading custom architecture: {m['cfg']} with weights {m['weights']}")
-                if m["type"] == "v10":
-                    model = YOLOv10(m["cfg"])
-                else: # Fallback
-                    model = YOLO(m["cfg"])
-                
-                # 下载并加载权重 (如果不下载，ultralytics transform 会处理，但显式 load 更稳)
-                if not os.path.exists(m['weights']):
-                    print(f"📥 Downloading {m['weights']}...")
-                    model.load(m['weights']) # load() 方法会自动下载吗？通常是在 train() 或 init()，这里我们依赖 ultralytics 的自动下载机制
-                else:
-                    model.load(m['weights'])
-                    
+            if competitor["name"] == "AgriYOLO":
+                print(f"Loading custom architecture: {competitor['cfg']} with weights {competitor['weights']}")
+                model = YOLOv10(competitor["cfg"]) if competitor["type"] == "v10" else YOLO(competitor["cfg"])
+                model.load(competitor["weights"])
             else:
-                # 对于标准 SOTA 模型，直接加载 .pt 文件 (包含结构+权重)
-                print(f"👉 Loading pretrained model: {m['weights']}")
-                if m["type"] == "rtdetr":
-                    model = RTDETR(m['weights'])
-                elif m["type"] == "v10":
-                    model = YOLOv10(m['weights'])
+                print(f"Loading pretrained model: {competitor['weights']}")
+                if competitor["type"] == "rtdetr":
+                    model = RTDETR(competitor["weights"])
+                elif competitor["type"] == "v10":
+                    model = YOLOv10(competitor["weights"])
                 else:
-                    model = YOLO(m['weights'])
-        except Exception as e:
-            print(f"⚠️ Failed to load specific weights, falling back to config: {e}")
-            if m["type"] == "rtdetr":
-                model = RTDETR(m["cfg"])
-            elif m["type"] == "v10":
-                model = YOLOv10(m["cfg"])
+                    model = YOLO(competitor["weights"])
+        except Exception as exc:
+            print(f"Failed to load specific weights, falling back to config: {exc}")
+            if competitor["type"] == "rtdetr":
+                model = RTDETR(competitor["cfg"])
+            elif competitor["type"] == "v10":
+                model = YOLOv10(competitor["cfg"])
             else:
-                model = YOLO(m["cfg"])
+                model = YOLO(competitor["cfg"])
 
-        # 2. 检查是否已存在训练好的权重 (断点续传逻辑)
-        best_weight = os.path.join(OUTPUT_ROOT, m["name"], "weights", "best.pt")
-        
-        if os.path.exists(best_weight):
-            print(f"✅ Found existing weights for {m['name']}, skipping training...")
+        best_weight = Path(args.output_root) / competitor["name"] / "weights" / "best.pt"
+        if best_weight.exists():
+            print(f"Found existing weights for {competitor['name']}, skipping training...")
         else:
-            # 启动训练 (Fine-tuning)
-            # pretrained=True 启用迁移学习
             model.train(
-                data=DATA_YAML, 
-                epochs=EPOCHS, 
-                imgsz=IMG_SIZE, 
-                device=DEVICE, 
-                project=OUTPUT_ROOT, 
-                name=m["name"],
-                pretrained=True # ✅ 开启预训练权重迁移
+                data=args.data,
+                epochs=args.epochs,
+                imgsz=args.imgsz,
+                device=args.device,
+                project=args.output_root,
+                name=competitor["name"],
+                pretrained=True,
             )
 
-        # 3. 最终评估 (统计 mAP50 和 mAP_small)
-        # 重新定义 best_weight 以防路径逻辑有变 (其实没变)
-        if os.path.exists(best_weight):
-            summary_list.append(evaluate_small_objects(best_weight, m["name"], DATA_YAML))
+        if best_weight.exists():
+            summary_list.append(evaluate_small_objects(str(best_weight), competitor["name"], args.data))
 
-    # 4. 生成最终汇总表与图表
     df = pd.DataFrame(summary_list)
-    log_dir = "logs"
-    os.makedirs(log_dir, exist_ok=True)
-    output_csv = os.path.join(log_dir, "sota_comparison_final_v2.csv")
+    log_dir = Path("logs")
+    log_dir.mkdir(exist_ok=True)
+    output_csv = log_dir / "sota_comparison_final_v2.csv"
     df.to_csv(output_csv, index=False)
-    
-    plot_sota_curves(OUTPUT_ROOT)
-    
-    print(f"\n🏆 SOTA Comparison Complete! Summary saved to {output_csv}")
-    print(df.to_markdown(index=False))
+
+    plot_sota_curves(args.output_root)
+
+    print(f"\nSOTA comparison complete. Summary saved to {output_csv}")
+    if not df.empty:
+        print(df.to_markdown(index=False))
+
 
 if __name__ == "__main__":
-    target_data_yaml = r"E:\Desktop\datasets\Crop\data.yaml"
-    if os.path.exists(target_data_yaml): 
-        main()
-    else: 
-        print(f"❌ '{target_data_yaml}' not found. Please check data config path.")
+    parsed_args = parse_args()
+    if os.path.exists(parsed_args.data):
+        main(parsed_args)
+    else:
+        print(f"'{parsed_args.data}' not found. Please check data config path.")

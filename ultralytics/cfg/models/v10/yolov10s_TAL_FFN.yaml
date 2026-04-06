@@ -42,7 +42,7 @@ head:
   #   - use_cawn=true, reduction=4 (CADFM)
   #   - 所有卷积使用DSConv替代标准卷积
   # Inputs: P2(19), P3(16), P4(13), P5(10)
-  - [[19, 16, 13, 10], 1, TALFFN, [128, 2, 2, 1, true, true, true]] # 20: [P2, P3, P4, P5]
+  - [[19, 16, 13, 10], 1, TALFFN, [128, 2, 2, 1, true, true, true, 4]] # 20: [P2, P3, P4, P5]
   # 参数说明:
   # 128: out_channels
   # 2: heavy_levels (P2/P3使用heavy_repeats)

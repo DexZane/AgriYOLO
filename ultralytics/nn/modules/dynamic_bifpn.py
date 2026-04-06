@@ -5,6 +5,21 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
+class StandardConvBlock(nn.Module):
+    """Standard Conv-BN-SiLU block used by the baseline BiFPN variants."""
+
+    def __init__(self, channels: int):
+        super().__init__()
+        self.block = nn.Sequential(
+            nn.Conv2d(channels, channels, kernel_size=3, padding=1, bias=False),
+            nn.BatchNorm2d(channels),
+            nn.SiLU(inplace=True),
+        )
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return self.block(x)
+
+
 class DepthwiseSeparableConv(nn.Module):
     """Depthwise separable convolution block (DWConv + PWConv + BN + SiLU)."""
 
@@ -19,6 +34,20 @@ class DepthwiseSeparableConv(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.block(x)
+
+
+class FastNormalizedFusion(nn.Module):
+    """BiFPN-style learned scalar fusion weights."""
+
+    def __init__(self, num_inputs: int, eps: float = 1e-4):
+        super().__init__()
+        self.eps = eps
+        self.weights = nn.Parameter(torch.ones(num_inputs, dtype=torch.float32))
+
+    def forward(self, inputs: list[torch.Tensor]) -> list[torch.Tensor]:
+        weights = F.relu(self.weights)
+        weights = weights / (weights.sum() + self.eps)
+        return [weights[i].to(device=inputs[0].device, dtype=inputs[0].dtype).view(1, 1, 1, 1) for i in range(len(inputs))]
 
 
 class ContextAwareWeight(nn.Module):
@@ -84,20 +113,26 @@ class TALFFN(nn.Module):
         heavy_levels: int = 2,
         heavy_repeats: int = 2,
         light_repeats: int = 1,
-        use_cawn: bool = True,
-        use_adsa: bool = True,
+        use_cawn: bool = False,
+        use_adsa: bool = False,
+        use_dsconv: bool = False,
         reduction: int = 4,
     ) -> None:
         super().__init__()
 
         assert len(fpn_sizes) >= 2, "TALFFN expects at least two feature levels."
 
-
         self.num_levels = len(fpn_sizes)
         self.out_channels = out_channels
+        self.use_cawn = use_cawn
+        self.use_adsa = use_adsa
+        self.use_dsconv = use_dsconv
         heavy_levels = max(0, min(heavy_levels, self.num_levels))
 
-        repeats_per_level = [heavy_repeats if i < heavy_levels else light_repeats for i in range(self.num_levels)]
+        if self.use_adsa:
+            repeats_per_level = [heavy_repeats if i < heavy_levels else light_repeats for i in range(self.num_levels)]
+        else:
+            repeats_per_level = [max(light_repeats, 1)] * self.num_levels
 
         self.input_projs = nn.ModuleList(
             [nn.Conv2d(in_c, out_channels, kernel_size=1, bias=False) for in_c in fpn_sizes]
@@ -114,18 +149,22 @@ class TALFFN(nn.Module):
             self._make_block(repeats_per_level[level]) for level in self.bottom_up_levels
         )
 
+        weight_module = ContextAwareWeight if self.use_cawn else FastNormalizedFusion
+
         self.td_weight_modules = nn.ModuleList(
-            ContextAwareWeight(out_channels, 2) for _ in self.top_down_levels
+            weight_module(out_channels, 2, reduction) if self.use_cawn else weight_module(2) for _ in self.top_down_levels
         )
 
         self.bu_num_inputs = [3 if idx < len(self.bottom_up_levels) - 1 else 2 for idx in range(len(self.bottom_up_levels))]
         self.bu_weight_modules = nn.ModuleList(
-            ContextAwareWeight(out_channels, num_inputs) for num_inputs in self.bu_num_inputs
+            weight_module(out_channels, num_inputs, reduction) if self.use_cawn else weight_module(num_inputs)
+            for num_inputs in self.bu_num_inputs
         )
 
     def _make_block(self, repeats: int) -> nn.Sequential:
         repeats = max(repeats, 1)
-        return nn.Sequential(*(DepthwiseSeparableConv(self.out_channels) for _ in range(repeats)))
+        block_cls = DepthwiseSeparableConv if self.use_dsconv else StandardConvBlock
+        return nn.Sequential(*(block_cls(self.out_channels) for _ in range(repeats)))
 
     def _project_inputs(self, inputs: list[torch.Tensor]) -> list[torch.Tensor]:
         projected: list[torch.Tensor] = []
@@ -142,7 +181,6 @@ class TALFFN(nn.Module):
 
     def forward(self, inputs: list[torch.Tensor]) -> list[torch.Tensor]:
         assert len(inputs) == self.num_levels, "Unexpected number of feature levels for TALFFN."
-
 
         projected = self._project_inputs(inputs)
 
@@ -162,7 +200,9 @@ class TALFFN(nn.Module):
             prev_out = outputs[level - 1]
             assert prev_out is not None
             target_hw = td_features[level].shape[-2:]
-            downsampled = F.interpolate(prev_out, size=target_hw, mode="nearest")
+            downsampled = F.max_pool2d(prev_out, kernel_size=3, stride=2, padding=1)
+            if downsampled.shape[-2:] != target_hw:
+                downsampled = F.interpolate(downsampled, size=target_hw, mode="nearest")
             num_inputs = self.bu_num_inputs[idx]
             if num_inputs == 3:
                 fusion_inputs = [projected[level], td_features[level], downsampled]
@@ -194,4 +234,3 @@ class FeatureSelect(nn.Module):
 DynamicWeightedBiFPN = TALFFN
 
 __all__ = ("TALFFN", "DynamicWeightedBiFPN", "FeatureSelect")
-

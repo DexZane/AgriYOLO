@@ -924,7 +924,21 @@ def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
             heavy_levels = args[1] if len(args) > 1 else 2
             heavy_repeats = args[2] if len(args) > 2 else 2
             light_repeats = args[3] if len(args) > 3 else 1
-            args = [out_c, [ch[x] for x in f], heavy_levels, heavy_repeats, light_repeats]
+            use_cawn = args[4] if len(args) > 4 else False
+            use_adsa = args[5] if len(args) > 5 else False
+            use_dsconv = args[6] if len(args) > 6 else False
+            reduction = args[7] if len(args) > 7 else 4
+            args = [
+                out_c,
+                [ch[x] for x in f],
+                heavy_levels,
+                heavy_repeats,
+                light_repeats,
+                use_cawn,
+                use_adsa,
+                use_dsconv,
+                reduction,
+            ]
             c2 = out_c
         elif m is Concat:
             c2 = sum(ch[x] for x in f)

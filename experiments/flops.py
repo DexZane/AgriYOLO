@@ -26,7 +26,7 @@ from ultralytics import YOLO, RTDETR, YOLOv10
 def calculate_complexity():
     # Define models to analyze (Synced with run_sota_comparison.py)
     models_to_check = [
-        {"name": "AgriYOLO",  "cfg": "ultralytics/cfg/models/v10/yolov10_agriyolo_full.yaml", "type": "v10"},
+        {"name": "AgriYOLO",  "cfg": "ultralytics/cfg/models/v10/yolov10s_TAL_FFN.yaml", "type": "v10"},
         {"name": "YOLOv10s",  "cfg": "ultralytics/cfg/models/v10/yolov10s_baseline.yaml", "type": "v10"},
         {"name": "YOLOv8s",   "cfg": "ultralytics/cfg/models/v8/yolov8.yaml",    "type": "v8"},
         {"name": "YOLOv9c",   "cfg": "ultralytics/cfg/models/v9/yolov9c.yaml",   "type": "v9"},

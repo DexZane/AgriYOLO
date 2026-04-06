@@ -1,105 +1,98 @@
 """
-Inference Speed (FPS/Latency) Benchmark Suite
---------------------------------------------------
-Purpose:
-    Measures the inference speed (Latency per image and FPS) for all SOTA 
-    models using the same hardware environment. Essential for the 
-    "Real-time Performance" section of the SCI paper.
+Inference speed benchmark for the trained model checkpoints.
 
-Usage:
-    python experiments/speed_benchmark.py
+The benchmark uses raw PyTorch forward passes under `torch.inference_mode()`
+to avoid mixing model latency with predictor-side preprocessing or postprocess
+overhead.
 """
 
+import argparse
 import os
 import sys
 import time
-import torch
+
 import pandas as pd
+import torch
 
-# Ensure local 'ultralytics' is used (Must be before any ultralytics imports!)
-root_path = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-if root_path not in sys.path:
-    sys.path.insert(0, root_path)
 
-from ultralytics import YOLO, RTDETR, YOLOv10
+ROOT_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+if ROOT_PATH not in sys.path:
+    sys.path.insert(0, ROOT_PATH)
 
-def benchmark_speed():
-    # 统一测试参数
-    DATA_YAML = "agriyolo.yaml"
-    IMG_SIZE = 640
-    DEVICE = 0 if torch.cuda.is_available() else "cpu"
-    WARMUP = 10  # 预热次数
-    ITERATIONS = 50 # 测试次数
-    
-    # 待测试模型列表 (指向 SOTA 对比实验训练好的最佳权重)
-    # 路径格式: SOTA_Comparisons/<ModelName>/weights/best.pt
-    MODELS_TO_TEST = [
-        {"name": "AgriYOLO",  "path": "SOTA_Comparisons/AgriYOLO/weights/best.pt",  "type": "v10"},
-        {"name": "YOLOv10s",  "path": "SOTA_Comparisons/YOLOv10s/weights/best.pt",  "type": "v10"},
-        {"name": "YOLOv8s",   "path": "SOTA_Comparisons/YOLOv8s/weights/best.pt",   "type": "v8"},
-        {"name": "YOLOv9c",   "path": "SOTA_Comparisons/YOLOv9c/weights/best.pt",   "type": "v9"},
-        {"name": "YOLOv5s",   "path": "SOTA_Comparisons/YOLOv5s/weights/best.pt",   "type": "v5"},
-        {"name": "RT_DETR_l", "path": "SOTA_Comparisons/RT_DETR_l/weights/best.pt", "type": "rtdetr"}
+from ultralytics import RTDETR, YOLO, YOLOv10
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(description="Benchmark raw model latency.")
+    parser.add_argument("--imgsz", type=int, default=640, help="Input image size.")
+    parser.add_argument("--device", default="0" if torch.cuda.is_available() else "cpu", help="Benchmark device.")
+    parser.add_argument("--warmup", type=int, default=10, help="Warmup iterations.")
+    parser.add_argument("--iterations", type=int, default=50, help="Measured iterations.")
+    return parser.parse_args()
+
+
+def get_model_wrapper(model_type, weight_path):
+    if model_type == "rtdetr":
+        return RTDETR(weight_path)
+    if model_type == "v10":
+        return YOLOv10(weight_path)
+    return YOLO(weight_path)
+
+
+def benchmark_speed(args):
+    device = torch.device(f"cuda:{args.device}") if str(args.device).isdigit() and torch.cuda.is_available() else torch.device(args.device)
+    models_to_test = [
+        {"name": "AgriYOLO", "path": "SOTA_Comparisons/AgriYOLO/weights/best.pt", "type": "v10"},
+        {"name": "YOLOv10s", "path": "SOTA_Comparisons/YOLOv10s/weights/best.pt", "type": "v10"},
+        {"name": "YOLOv8s", "path": "SOTA_Comparisons/YOLOv8s/weights/best.pt", "type": "v8"},
+        {"name": "YOLOv9c", "path": "SOTA_Comparisons/YOLOv9c/weights/best.pt", "type": "v9"},
+        {"name": "YOLOv5s", "path": "SOTA_Comparisons/YOLOv5s/weights/best.pt", "type": "v5"},
+        {"name": "RT_DETR_l", "path": "SOTA_Comparisons/RT_DETR_l/weights/best.pt", "type": "rtdetr"},
     ]
 
     results = []
+    print(f"Starting speed benchmark on {device}...")
 
-    print(f"🚀 Starting speed benchmark on {DEVICE}...")
-
-    for m in MODELS_TO_TEST:
-        print(f"Testing {m['name']}...")
-        
-        if not os.path.exists(m['path']):
-            print(f"⚠️ Warning: Weights not found at {m['path']}. Skipping...")
+    for model_spec in models_to_test:
+        print(f"Testing {model_spec['name']}...")
+        if not os.path.exists(model_spec["path"]):
+            print(f"  Warning: weights not found at {model_spec['path']}. Skipping...")
             continue
 
-        # 加载模型
         try:
-            if m["type"] == "rtdetr": model = RTDETR(m["path"])
-            elif m["type"] == "v10": model = YOLOv10(m["path"])
-            else: model = YOLO(m["path"])
-            
-            model.to(DEVICE)
-            
-            # 创建虚拟输入
-            dummy_input = torch.randn(1, 3, IMG_SIZE, IMG_SIZE).to(DEVICE)
-            
-            # 1. 预热
-            for _ in range(WARMUP):
-                _ = model(dummy_input, verbose=False)
-            
-            # 2. 正式测速
-            torch.cuda.synchronize() if torch.cuda.is_available() else None
-            start_time = time.time()
-            
-            for _ in range(ITERATIONS):
-                _ = model(dummy_input, verbose=False)
-            
-            torch.cuda.synchronize() if torch.cuda.is_available() else None
-            end_time = time.time()
-            
-            # 计算平均耗时 (ms) 和 FPS
-            avg_latency = ((end_time - start_time) / ITERATIONS) * 1000
-            fps = 1000 / avg_latency
-            
-            results.append({
-                "Model": m["name"],
-                "Latency (ms)": round(avg_latency, 2),
-                "FPS": round(fps, 1)
-            })
-            print(f"   Done: {avg_latency:.2f} ms | {fps:.1} FPS")
-            
-        except Exception as e:
-            print(f"   Failed to test {m['name']}: {e}")
+            wrapper = get_model_wrapper(model_spec["type"], model_spec["path"])
+            backend = wrapper.model.to(device).eval()
+            dummy_input = torch.randn(1, 3, args.imgsz, args.imgsz, device=device)
 
-    # 保存结果
+            with torch.inference_mode():
+                for _ in range(args.warmup):
+                    _ = backend(dummy_input)
+
+                if device.type == "cuda":
+                    torch.cuda.synchronize()
+                start_time = time.time()
+                for _ in range(args.iterations):
+                    _ = backend(dummy_input)
+                if device.type == "cuda":
+                    torch.cuda.synchronize()
+                end_time = time.time()
+
+            avg_latency = ((end_time - start_time) / args.iterations) * 1000
+            fps = 1000 / avg_latency
+            results.append({"Model": model_spec["name"], "Latency (ms)": round(avg_latency, 2), "FPS": round(fps, 1)})
+            print(f"  Done: {avg_latency:.2f} ms | {fps:.1f} FPS")
+        except Exception as exc:
+            print(f"  Failed to test {model_spec['name']}: {exc}")
+
     if results:
         df = pd.DataFrame(results)
         log_dir = "logs"
         os.makedirs(log_dir, exist_ok=True)
-        df.to_csv(os.path.join(log_dir, "speed_benchmark.csv"), index=False)
-        print(f"\n✅ Benchmark results saved to {log_dir}/speed_benchmark.csv")
+        output_csv = os.path.join(log_dir, "speed_benchmark.csv")
+        df.to_csv(output_csv, index=False)
+        print(f"\nBenchmark results saved to {output_csv}")
         print(df.to_markdown(index=False))
 
+
 if __name__ == "__main__":
-    benchmark_speed()
+    benchmark_speed(parse_args())

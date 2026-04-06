@@ -1,276 +1,235 @@
-# AgriYOLO: Task-driven Asymmetric Lightweight Feature Fusion Network
+# AgriYOLO
 
-<div align="center">
+AgriYOLO is a research-oriented object detection repository built on top of the local `ultralytics/` codebase in this project. The main model variant extends YOLOv10 with a lightweight multi-scale fusion neck for small-object detection in agricultural imagery.
 
-[![Python](https://img.shields.io/badge/Python-3.8%2B-blue.svg)](https://www.python.org/downloads/)
-[![PyTorch](https://img.shields.io/badge/PyTorch-2.0%2B-orange.svg)](https://pytorch.org/)
-[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+The repository includes:
 
-**Official Implementation of AgriYOLO**  
-*A specialized object detection model for tiny crop disease lesion detection*
+- The custom TAL-FFN neck implementation
+- AgriYOLO model YAMLs and ablation configs
+- Training, evaluation, benchmarking, and visualization scripts
+- A small regression test suite for the architecture fixes applied in this repo
 
-🚀 [Quick Start](#-quick-start) | 📊 [Results](#-results) | 🏗️ [Architecture](#️-architecture)
+The repository does not include:
 
-</div>
+- The dataset used in the experiments
+- Pretrained project-specific checkpoints
+- Final paper-ready artifacts as tracked source files
 
----
+## Highlights
 
-## 🌾 Highlights
+- Four-scale detection with an explicit P2 head for small objects
+- TAL-FFN neck with configurable ADSA, CADFM, and DSConv switches
+- SimAM-based per-scale refinement before detection
+- YOLOv10-style training path with one-to-many and one-to-one heads
+- Utility scripts for ablations, SOTA comparison, speed benchmarking, and plotting
 
-AgriYOLO introduces **TAL-FFN** (Task-driven Asymmetric Lightweight Feature Fusion Network), an innovative architecture designed specifically for detecting tiny crop disease lesions in complex agricultural environments.
+## Architecture
 
-**Key Innovations:**
-- **🎯 ADSA (Asymmetric Depth Allocation Strategy)**: Allocates more computational resources to shallow layers (P2) for enhanced small object detection
-- **🔄 CADFM (Context-Aware Dynamic Fusion Mechanism)**: Adaptive feature fusion with content-driven weighting
-- **⚡ DSConv (Depthwise Separable Convolution)**: Lightweight convolution blocks for efficient feature extraction
-- **🎨 SimAM (Simple Attention Module)**: Parameter-free attention mechanism for enhanced feature expression
+AgriYOLO keeps the YOLOv10 backbone and detection paradigm, then replaces the standard PAN/FPN-style neck with a task-driven fusion block.
 
-**Performance:**
-- **98.90% mAP50** with **22.9% fewer parameters** than YOLOv10s baseline
-- Real-time inference at **71.7 FPS** on RTX 4090
-- Superior small object detection capability (optimized for lesions < 32×32 pixels)
+```mermaid
+flowchart TD
+    A["Backbone features"] --> B["P2"]
+    A --> C["P3"]
+    A --> D["P4"]
+    A --> E["P5"]
 
----
+    B --> F["TAL-FFN"]
+    C --> F
+    D --> F
+    E --> F
 
-## 📦 Installation
+    F --> G["FeatureSelect + SimAM (P2)"]
+    F --> H["FeatureSelect + SimAM (P3)"]
+    F --> I["FeatureSelect + SimAM (P4)"]
+    F --> J["FeatureSelect + SimAM (P5)"]
 
-### Prerequisites
+    G --> K["YOLOv10 Detect"]
+    H --> K
+    I --> K
+    J --> K
+```
+
+Main components:
+
+- `ADSA`: asymmetric depth allocation, giving shallower scales a heavier fusion path
+- `CADFM`: context-aware dynamic fusion weighting
+- `DSConv`: depthwise separable convolution option inside TAL-FFN
+- `SimAM`: lightweight attention applied to each selected feature map
+
+## Repository Layout
+
+```text
+.
+|-- ultralytics/                   # Local model, trainer, data, and module code
+|   |-- cfg/models/v10/            # AgriYOLO and ablation YAML configs
+|   |-- engine/                    # Training and validation engine
+|   |-- models/                    # YOLO / YOLOv10 wrappers
+|   `-- nn/modules/                # Custom layers, head, and TAL-FFN implementation
+|-- experiments/                   # Repro scripts for ablation, SOTA eval, and speed tests
+|-- visualize/                     # Optional plotting and visualization scripts
+|-- tests/                         # Regression tests for architecture-level fixes
+|-- requirements.txt               # Python dependencies
+|-- README.md
+`-- README_CN.md
+```
+
+Generated outputs such as `runs/`, `logs/`, `results/`, `picture/`, `weights/`, `AgriYOLO_Ablation/`, and `SOTA_Comparisons/` are intentionally ignored by Git.
+
+## Installation
+
+### Requirements
+
 - Python 3.8+
 - PyTorch 2.0+
-- CUDA 11.8+ (for GPU acceleration)
+- CUDA-capable GPU recommended for training
 
 ### Setup
 
 ```bash
-# Clone the repository
-git clone https://github.com/yourusername/AgriYOLO.git
-cd AgriYOLO
-
-# Install dependencies
+git clone <your-repo-url>
+cd yolov10-main
 pip install -r requirements.txt
 ```
 
----
+Run commands from the repository root so Python imports the local `ultralytics/` package in this workspace.
 
-## 🚀 Quick Start
+## Quick Start
 
-### Training
+### 1. Train AgriYOLO
 
-```bash
-# Train AgriYOLO on your custom dataset
-yolo train model=ultralytics/cfg/models/v10/yolov10s_TAL_FFN.yaml \
-           data=your_dataset.yaml \
-           epochs=300 \
-           imgsz=640 \
-           batch=16
+Use the TAL-FFN model config:
+
+```python
+from ultralytics import YOLOv10
+
+model = YOLOv10("ultralytics/cfg/models/v10/yolov10s_TAL_FFN.yaml")
+model.train(
+    data="path/to/data.yaml",
+    epochs=150,
+    imgsz=640,
+    batch=16,
+    device=0,
+)
 ```
 
-### Inference
+### 2. Validate a Trained Checkpoint
 
-```bash
-# Run inference on images
-yolo predict model=weights/agriyolo.pt \
-             source=path/to/images \
-             conf=0.25 \
-             imgsz=640
+```python
+from ultralytics import YOLOv10
 
-# Run inference on video
-yolo predict model=weights/agriyolo.pt \
-             source=path/to/video.mp4
+model = YOLOv10("path/to/best.pt")
+model.val(
+    data="path/to/data.yaml",
+    split="test",
+    imgsz=640,
+    save_json=True,
+)
 ```
 
-### Validation
+### 3. Run Inference
 
-```bash
-# Evaluate model performance
-yolo val model=weights/agriyolo.pt \
-         data=your_dataset.yaml \
-         imgsz=640
+```python
+from ultralytics import YOLOv10
+
+model = YOLOv10("path/to/best.pt")
+model.predict(
+    source="path/to/images_or_video",
+    imgsz=640,
+    conf=0.25,
+    save=True,
+)
 ```
 
----
+## Model Configurations
 
-## 📊 Results
+The main configs live under [`ultralytics/cfg/models/v10/`](./ultralytics/cfg/models/v10/).
 
-### Comparison with State-of-the-Art
+Important variants:
 
-| Model | mAP50 (%) | mAP50-95 (%) | Params (M) | GFLOPs | FPS |
-|-------|-----------|--------------|------------|--------|-----|
-| YOLOv5s | 98.29 | 95.52 | 2.65 | 3.92 | 163.9 |
-| YOLOv8s | 97.40 | 94.55 | 3.16 | 4.43 | 149.2 |
-| YOLOv9c | 98.19 | 96.10 | 25.59 | 52.01 | 60.0 |
-| YOLOv10s | 98.73 | 95.71 | 8.09 | 12.44 | 82.4 |
-| **AgriYOLO (Ours)** | **98.90** | **95.95** | **6.24** | 21.17 | 71.7 |
+- `yolov10s_baseline.yaml`: baseline YOLOv10s-style detector used for comparison
+- `yolov10s_P2_BiFPN.yaml`: P2 head plus standard BiFPN-style fusion
+- `yolov10s_P2_ADSA.yaml`: adds asymmetric depth allocation
+- `yolov10s_P2_CADFM.yaml`: adds context-aware dynamic fusion
+- `yolov10s_TAL_FFN.yaml`: full AgriYOLO neck with ADSA, CADFM, DSConv, and SimAM
+
+## Reproducibility Scripts
 
 ### Ablation Study
-
-| Configuration | mAP50 (%) | Params (M) | Description |
-|--------------|-----------|------------|-------------|
-| Baseline (YOLOv10s + PANet) | 98.70 | 8.09 | Original architecture |
-| + ADSA (P2 head) | 98.80 | 6.50 | Add P2 detection head |
-| + TAL-FFN | 98.80 | 6.42 | Replace PANet with TAL-FFN |
-| + SimAM (AgriYOLO) | **98.90** | **6.24** | Final model with attention |
-
----
-
-## 🏗️ Architecture
-
-### TAL-FFN Overview
-
-```
-         ┌─────────────────────────────────────┐
-         │    Backbone (CSPDarknet + SimAM)   │
-         └──┬──────┬──────┬──────┬────────────┘
-            │      │      │      │
-           C2     C3     C4     C5
-           │      │      │      │
-           └──────┴──────┴──────┘
-                  │
-          ┌───────▼───────┐
-          │   TAL-FFN     │
-          │ ┌───────────┐ │
-          │ │   ADSA    │ │  ← Asymmetric depth allocation
-          │ │  (P2 focus)│ │
-          │ └─────┬─────┘ │
-          │ ┌─────▼─────┐ │
-          │ │  CADFM    │ │  ← Dynamic fusion weights
-          │ └─────┬─────┘ │
-          │ ┌─────▼─────┐ │
-          │ │  DSConv   │ │  ← Lightweight convolution
-          │ └───────────┘ │
-          └───────┬───────┘
-                  │
-          ┌───────▼───────┐
-          │  SimAM + Detect│
-          │  (P2,P3,P4,P5) │
-          └────────────────┘
-```
-
-For detailed architecture diagrams, see [svg/](svg/).
-
----
-
-## 📁 Project Structure
-
-```
-AgriYOLO/
-├── ultralytics/
-│   ├── nn/
-│   │   └── modules/
-│   │       └── dynamic_bifpn.py      # TAL-FFN implementation (ADSA + CADFM + DSConv)
-│   └── cfg/
-│       └── models/v10/
-│           └── yolov10s_TAL_FFN.yaml # Model configuration
-│
-├── experiments/
-│   ├── ablation_study.py             # Ablation experiments
-│   ├── run_sota_comparison.py        # SOTA comparison
-│   └── speed_benchmark.py            # Performance benchmarking
-│
-├── visualize/
-│   ├── plot_radar_chart.py           # Performance visualization
-│   ├── plot_bubble_chart.py          # Speed-accuracy trade-off
-│   └── tal_ffn_visualizer.py         # Architecture visualization
-│
-├── svg/                               # Architecture diagrams
-│   ├── agriyolo_architecture.drawio.svg
-│   ├── TAL_FFN_Internal_Mechanism.drawio.svg
-│   ├── CADFM_Detail.drawio.svg
-│   └── ADSA_Strategy.drawio.svg
-│
-├── requirements.txt
-└── README.md
-```
-
----
-
-## 🔬 Experiments
-
-### Run Ablation Study
 
 ```bash
 python experiments/ablation_study.py
 ```
 
-### Reproduce SOTA Comparison
+Expected input:
+
+- A valid dataset YAML, currently defaulted to `data/Crop/data.yaml` inside the script
+
+Outputs:
+
+- Training runs under `TAL_FFN_Ablation/`
+- Validation artifacts under the same project directory
+
+### SOTA Comparison
 
 ```bash
-python experiments/run_sota_comparison.py --models yolov5s yolov8s yolov10s agriyolo
+python experiments/run_sota_comparison.py --data path/to/data.yaml --epochs 150 --imgsz 640 --device 0
 ```
+
+What it does:
+
+- Trains or reuses checkpoints for multiple detector baselines
+- Evaluates on the full YOLO `test` split using COCO-style metrics
+- Writes summaries to `logs/`
+- Generates comparison curves under `picture/`
 
 ### Speed Benchmark
 
 ```bash
-python experiments/speed_benchmark.py --model weights/agriyolo.pt --device cuda:0
+python experiments/speed_benchmark.py --device 0 --imgsz 640 --warmup 10 --iterations 50
 ```
 
----
+The benchmark uses raw model forward passes under `torch.inference_mode()` and expects checkpoints to exist under `SOTA_Comparisons/<model>/weights/best.pt`.
 
-## 📈 Visualization
+## Tests
 
-### Generate Performance Plots
+Run the regression tests with:
 
 ```bash
-# Radar chart (multi-dimensional performance)
-python visualize/plot_radar_chart.py
-
-# Bubble chart (speed-accuracy-complexity trade-off)
-python visualize/plot_bubble_chart.py
-
-# Architecture visualization
-python visualize/tal_ffn_visualizer.py
+python -m unittest discover -s tests -v
 ```
 
----
+The current tests cover:
 
-## 🎓 Citation
+- TAL-FFN ablation variants being structurally distinct
+- SimAM not collapsing to an identity mapping
+- YOLOv10 eval mode avoiding the extra one-to-many inference branch
+- Full-split COCO ground-truth generation with real image sizes
 
-**Paper status**: Under preparation
+## Notes on Data and Outputs
 
-If you use AgriYOLO in your research, please cite this repository:
+- This repository does not ship the training dataset
+- The default example paths in some scripts assume a local dataset layout such as `data/Crop/data.yaml`
+- Benchmark logs, plots, and checkpoints are generated locally and are gitignored
+- If you publish the repository, upload code and configs first, then release weights separately if needed
+
+## Acknowledgements
+
+This project is built on top of the Ultralytics YOLO codebase and adapts it for the AgriYOLO research setting.
+
+## License
+
+This repository is distributed under the GNU Affero General Public License v3.0. The project vendors and modifies code from the local `ultralytics/` codebase, so the repository license must stay compatible with that code.
+
+## Citation
+
+If you use this repository in academic work, cite the repository first and replace it with the final paper citation when available.
 
 ```bibtex
-@misc{agriyolo2024,
-  title={AgriYOLO: Task-driven Asymmetric Lightweight Feature Fusion Network for Tiny Crop Disease Lesion Detection},
-  author={mimanchi-dongze},
-  year={2024},
-  howpublished={\url{https://github.com/mimanchi-dongze/AgriYOLO}},
-  note={GitHub repository}
+@misc{agriyolo,
+  title        = {AgriYOLO},
+  author       = {Repository Authors},
+  year         = {2026},
+  howpublished = {\url{https://github.com/<user>/<repo>}}
 }
 ```
-
-*BibTeX will be updated once the paper is published.*
-
----
-
-## 📄 License
-
-This project is released under the [MIT License](LICENSE).
-
----
-
-## 🙏 Acknowledgements
-
-This work is built upon the excellent [Ultralytics YOLOv10](https://github.com/THU-MIG/yolov10) framework. We thank the authors for their outstanding contributions to the object detection community.
-
----
-
-## 🤝 Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
----
-
-## 📧 Contact
-
-For questions or collaborations, please contact:
-- **Email**: mimanchi-dongze@users.noreply.github.com
-- **Issues**: [GitHub Issues](https://github.com/mimanchi-dongze/AgriYOLO/issues)
-
----
-
-<div align="center">
-
-**⭐ Star this repository if you find it helpful!**
-
-</div>

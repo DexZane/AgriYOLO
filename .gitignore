@@ -138,14 +138,15 @@ dmypy.json
 .pyre/
 
 # datasets and projects
-datasets/
-runs/
-wandb/
-tests/
+/datasets/
+/runs/
+/wandb/
 .DS_Store
+Thumbs.db
+Desktop.ini
 
 # Neural Network weights -----------------------------------------------------------------------------------------------
-weights/
+/weights/
 *.weights
 *.pt
 *.pb
@@ -167,10 +168,12 @@ pnnx*
 
 # AgriYOLO specific exclusions -----------------------------------------------------------------------
 # Experiment outputs
-AgriYOLO_Ablation/
-SOTA_Comparisons/
-results/
-logs/*.csv
+/AgriYOLO_Ablation/
+/TAL_FFN_Ablation/
+/SOTA_Comparisons/
+/results/
+/logs/
+/picture/
 
 # Large documentation files
 *.docx
@@ -182,4 +185,3 @@ drawio/*.drawio
 
 # Temporary files
 nul
-
