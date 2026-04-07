@@ -88,7 +88,7 @@ Generated outputs such as `runs/`, `logs/`, `results/`, `picture/`, `weights/`, 
 ### Setup
 
 ```bash
-git clone <your-repo-url>
+git clone https://github.com/DexZane/AgriYOLO
 cd yolov10-main
 pip install -r requirements.txt
 ```
@@ -263,6 +263,6 @@ If you use this repository in academic work, cite the repository first and repla
   title        = {AgriYOLO},
   author       = {Repository Authors},
   year         = {2026},
-  howpublished = {\url{https://github.com/<user>/<repo>}}
+  howpublished = {\url{https://github.com/DexZane/AgriYOLO/}}
 }
 ```
