@@ -4,8 +4,23 @@ from .val import YOLOv10DetectionValidator
 from .predict import YOLOv10DetectionPredictor
 from .train import YOLOv10DetectionTrainer
 
-from huggingface_hub import PyTorchModelHubMixin
 from .card import card_template_text
+
+try:
+    from huggingface_hub import PyTorchModelHubMixin
+except ImportError:
+    class PyTorchModelHubMixin:
+        """Fallback mixin so training/inference do not require huggingface_hub."""
+
+        def __init_subclass__(cls, **kwargs):
+            kwargs.pop("model_card_template", None)
+            return super().__init_subclass__()
+
+        def push_to_hub(self, *args, **kwargs):
+            raise ImportError(
+                "huggingface_hub is required for push_to_hub(). Install it with "
+                "`pip install huggingface_hub` if you need Hub integration."
+            )
 
 class YOLOv10(Model, PyTorchModelHubMixin, model_card_template=card_template_text):
 
