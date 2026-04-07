@@ -102,19 +102,23 @@ Run commands from the repository root so Python imports the local `ultralytics/`
 Use the shell entrypoint:
 
 ```bash
-bash scripts/train.sh
+bash scripts/train.sh \
+  --data path/to/data.yaml \
+  --device 0
 ```
 
-Override defaults with environment variables when needed:
+Full training example:
 
 ```bash
-MODEL=ultralytics/cfg/models/v10/yolov10s_TAL_FFN.yaml \
-DATA=path/to/data.yaml \
-EPOCHS=150 \
-IMGSZ=640 \
-BATCH=16 \
-DEVICE=0 \
-bash scripts/train.sh
+bash scripts/train.sh \
+  --model ultralytics/cfg/models/v10/yolov10s_TAL_FFN.yaml \
+  --data path/to/data.yaml \
+  --epochs 150 \
+  --imgsz 640 \
+  --batch 16 \
+  --device 0 \
+  --project runs/train \
+  --name agriyolo
 ```
 
 Python equivalent:
@@ -137,7 +141,11 @@ model.train(
 Use the shell entrypoint:
 
 ```bash
-MODEL=path/to/best.pt DATA=path/to/data.yaml SPLIT=test DEVICE=0 bash scripts/val.sh
+bash scripts/val.sh \
+  --model path/to/best.pt \
+  --data path/to/data.yaml \
+  --split test \
+  --device 0
 ```
 
 Python equivalent:
@@ -213,7 +221,7 @@ What it does:
 ### Speed Benchmark
 
 ```bash
-bash scripts/benchmark.sh
+bash scripts/benchmark.sh --device 0 --imgsz 640 --warmup 10 --iterations 50
 ```
 
 Or call the Python script directly:

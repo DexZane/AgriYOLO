@@ -102,7 +102,9 @@ pip install -r requirements.txt
 使用 shell 入口：
 
 ```bash
-bash scripts/train.sh
+bash scripts/train.sh \
+  --data path/to/data.yaml \
+  --device 0
 ```
 
 需要时可通过环境变量覆盖默认值：
@@ -137,7 +139,11 @@ model.train(
 使用 shell 入口：
 
 ```bash
-MODEL=path/to/best.pt DATA=path/to/data.yaml SPLIT=test DEVICE=0 bash scripts/val.sh
+bash scripts/val.sh \
+  --model path/to/best.pt \
+  --data path/to/data.yaml \
+  --split test \
+  --device 0
 ```
 
 Python 等价写法：
@@ -214,7 +220,7 @@ python experiments/run_sota_comparison.py --data path/to/data.yaml --epochs 150 
 优先使用 shell 入口：
 
 ```bash
-bash scripts/benchmark.sh
+bash scripts/benchmark.sh --device 0 --imgsz 640 --warmup 10 --iterations 50
 ```
 
 也可以直接调用 Python 脚本：
