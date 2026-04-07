@@ -14,6 +14,7 @@ NAME="${NAME:-agriyolo}"
 WORKERS="${WORKERS:-8}"
 PRETRAINED="${PRETRAINED:-true}"
 RESUME="${RESUME:-false}"
+AMP="${AMP:-true}"
 
 usage() {
   cat <<'EOF'
@@ -32,6 +33,7 @@ Options:
   --workers INT       Data loader workers
   --pretrained BOOL   Whether to use pretrained weights
   --resume BOOL       Resume from the last checkpoint
+  --amp BOOL          Enable automatic mixed precision
   --help              Show this message
 
 Environment variables with the same names are also supported.
@@ -51,6 +53,7 @@ while [[ $# -gt 0 ]]; do
     --workers) WORKERS="$2"; shift 2 ;;
     --pretrained) PRETRAINED="$2"; shift 2 ;;
     --resume) RESUME="$2"; shift 2 ;;
+    --amp) AMP="$2"; shift 2 ;;
     --help|-h) usage; exit 0 ;;
     *)
       echo "Unknown argument: $1" >&2
@@ -65,6 +68,7 @@ DATA="$(resolve_path "$DATA")"
 PROJECT="$(resolve_path "$PROJECT")"
 PRETRAINED="$(parse_bool "$PRETRAINED")"
 RESUME="$(parse_bool "$RESUME")"
+AMP="$(parse_bool "$AMP")"
 
 require_file "$MODEL" "Model config"
 require_file "$DATA" "Dataset config"
@@ -72,7 +76,7 @@ mkdir -p "$PROJECT"
 
 cd "$ROOT_DIR"
 
-"$PYTHON_BIN" - "$MODEL" "$DATA" "$EPOCHS" "$IMGSZ" "$BATCH" "$DEVICE" "$PROJECT" "$NAME" "$WORKERS" "$PRETRAINED" "$RESUME" <<'PY'
+"$PYTHON_BIN" - "$MODEL" "$DATA" "$EPOCHS" "$IMGSZ" "$BATCH" "$DEVICE" "$PROJECT" "$NAME" "$WORKERS" "$PRETRAINED" "$RESUME" "$AMP" <<'PY'
 import sys
 from ultralytics import YOLOv10
 
@@ -88,6 +92,7 @@ from ultralytics import YOLOv10
     workers,
     pretrained,
     resume,
+    amp,
 ) = sys.argv[1:]
 
 model = YOLOv10(model_path)
@@ -102,5 +107,6 @@ model.train(
     workers=int(workers),
     pretrained=pretrained == "True",
     resume=resume == "True",
+    amp=amp == "True",
 )
 PY

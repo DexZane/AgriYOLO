@@ -405,6 +405,73 @@ def check_requirements(requirements=ROOT.parent / "requirements.txt", exclude=()
     return True
 
 
+def check_amp_local(model):
+    """
+    Run a local AMP sanity check on the current model without downloading reference weights or sample assets.
+
+    Args:
+        model (nn.Module): Model instance already moved to the active training device.
+
+    Returns:
+        (bool): True if a local FP32/AMP forward pass succeeds and AMP outputs remain finite, else False.
+    """
+    device = next(model.parameters()).device
+    if device.type in ("cpu", "mps"):
+        return False
+
+    prefix = colorstr("AMP: ")
+    LOGGER.info(f"{prefix}running Automatic Mixed Precision (AMP) checks with the current model...")
+    warning_msg = "Setting 'amp=True'. If you experience zero-mAP or NaN losses you can disable AMP with amp=False."
+
+    def collect_tensors(output):
+        tensors = []
+        if isinstance(output, torch.Tensor):
+            tensors.append(output)
+        elif isinstance(output, dict):
+            for value in output.values():
+                tensors.extend(collect_tensors(value))
+        elif isinstance(output, (list, tuple)):
+            for value in output:
+                tensors.extend(collect_tensors(value))
+        return tensors
+
+    image_size = 256
+    stride = getattr(model, "stride", None)
+    if isinstance(stride, torch.Tensor) and stride.numel():
+        image_size = max(int(stride.max().item()) * 8, 256)
+
+    sample = torch.randn(1, 3, image_size, image_size, device=device)
+    was_training = model.training
+    model.eval()
+    try:
+        with torch.inference_mode():
+            fp32_output = model(sample)
+            with torch.cuda.amp.autocast(True):
+                amp_output = model(sample)
+
+        fp32_tensors = collect_tensors(fp32_output)
+        amp_tensors = collect_tensors(amp_output)
+        if len(fp32_tensors) != len(amp_tensors):
+            LOGGER.warning(f"{prefix}checks skipped. Unable to match FP32/AMP output structure. {warning_msg}")
+            return True
+
+        for tensor_fp32, tensor_amp in zip(fp32_tensors, amp_tensors):
+            if tensor_fp32.shape != tensor_amp.shape:
+                LOGGER.warning(f"{prefix}checks failed. FP32/AMP output shapes differ, disabling AMP.")
+                return False
+            if not torch.isfinite(tensor_amp).all():
+                LOGGER.warning(f"{prefix}checks failed. Non-finite AMP outputs detected, disabling AMP.")
+                return False
+
+        LOGGER.info(f"{prefix}checks passed")
+        return True
+    except (AttributeError, ModuleNotFoundError, RuntimeError) as exc:
+        LOGGER.warning(f"{prefix}checks skipped. Unable to complete the local AMP self-check: {exc}. {warning_msg}")
+        return True
+    finally:
+        model.train(was_training)
+
+
 def check_torchvision():
     """
     Checks the installed versions of PyTorch and Torchvision to ensure they're compatible.
