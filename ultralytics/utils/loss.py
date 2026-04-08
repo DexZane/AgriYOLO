@@ -725,8 +725,23 @@ class v10DetectLoss:
         self.one2one = v8DetectionLoss(model, tal_topk=1)
     
     def __call__(self, preds, batch):
-        one2many = preds["one2many"]
-        loss_one2many = self.one2many(one2many, batch)
-        one2one = preds["one2one"]
-        loss_one2one = self.one2one(one2one, batch)
+        device = self.one2one.device
+
+        if isinstance(preds, dict):
+            one2many = preds.get("one2many")
+            one2one = preds.get("one2one")
+        else:
+            # In eval/validation, v10 head may return one2one-only tuple/list outputs.
+            one2many, one2one = None, preds
+
+        if one2many is None:
+            loss_one2many = (torch.zeros((), device=device), torch.zeros(3, device=device))
+        else:
+            loss_one2many = self.one2many(one2many, batch)
+
+        if one2one is None:
+            loss_one2one = (torch.zeros((), device=device), torch.zeros(3, device=device))
+        else:
+            loss_one2one = self.one2one(one2one, batch)
+
         return loss_one2many[0] + loss_one2one[0], torch.cat((loss_one2many[1], loss_one2one[1]))
