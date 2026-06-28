@@ -269,7 +269,7 @@ If you use this repository in academic work, cite the repository first and repla
 ```bibtex
 @misc{agriyolo,
   title        = {AgriYOLO},
-  author       = {DexZane},
+ongzeWu  author       = },
   year         = {2026},
   howpublished = {\url{https://github.com/DexZane/AgriYOLO/}}
 }
