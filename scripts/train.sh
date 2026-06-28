@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/_common.sh"
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/Common.sh"
 
-MODEL="${MODEL:-ultralytics/cfg/models/v10/yolov10s_TAL_FFN.yaml}"
+MODEL="${MODEL:-ultralytics/cfg/models/v10/YoloV10sTalFFN.yaml}"
 DATA="${DATA:-data/Crop/data.yaml}"
 EPOCHS="${EPOCHS:-150}"
 IMGSZ="${IMGSZ:-640}"

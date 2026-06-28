@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/_common.sh"
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/Common.sh"
 
 MODEL="${MODEL:-weights/best.pt}"
 DATA="${DATA:-data/Crop/data.yaml}"

@@ -67,8 +67,8 @@ from .conv import (
     SpatialAttention,
 )
 from .head import OBB, Classify, Detect, Pose, RTDETRDecoder, Segment, WorldDetect, v10Detect
-from .dynamic_bifpn import TALFFN, DynamicWeightedBiFPN, FeatureSelect
-from .simam import SimAM
+from .DynamicBifpn import TALFFN, DynamicWeightedBiFPN, FeatureSelect
+from .SimAm import SimAM
 from .transformer import (
     AIFI,
     MLP,

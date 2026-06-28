@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/_common.sh"
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/Common.sh"
 
 DEVICE="${DEVICE:-0}"
 IMGSZ="${IMGSZ:-640}"
@@ -41,7 +41,7 @@ done
 
 cd "$ROOT_DIR"
 
-"$PYTHON_BIN" experiments/speed_benchmark.py \
+"$PYTHON_BIN" experiments/SpeedBenchmark.py \
   --device "$DEVICE" \
   --imgsz "$IMGSZ" \
   --warmup "$WARMUP" \
