@@ -4,7 +4,7 @@ set -e
 cd "$(dirname "$0")/.."
 
 echo "============================================================"
-echo "🚀 使用本地 AgriYOLO/ultralytics 启动两阶段训练 (Crop -> PDT/LH)"
+echo "使用本地 AgriYOLO/ultralytics 启动两阶段训练 (Crop -> PDT/LH)"
 echo "============================================================"
 
 export PYTHONPATH="$(pwd):$PYTHONPATH"

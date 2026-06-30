@@ -7,7 +7,7 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, ROOT)
 
 import ultralytics
-print("✅ 当前使用的 ultralytics 路径:", ultralytics.__file__)
+print("当前使用的 ultralytics 路径:", ultralytics.__file__)
 
 from ultralytics import YOLO
 
@@ -26,7 +26,7 @@ def main():
     run_name = "PDT_LH_scratch_baseline"
 
     print("=" * 80)
-    print("🎯 PDT/LH 从头训练对照试验启动 (Scratch)")
+    print("PDT/LH 从头训练对照试验启动 (Scratch)")
     print("=" * 80)
     print("初始模型架构:", model_cfg)
     print("运行设备:", device)
@@ -52,7 +52,7 @@ def main():
 
     final_weights = os.path.join(root_runs, run_name, "weights", "best.pt")
     print("=" * 80)
-    print("🎉 PDT/LH 从头训练完成")
+    print("PDT/LH 从头训练完成")
     print("最佳权重保存至:", final_weights)
     print("=" * 80)
 

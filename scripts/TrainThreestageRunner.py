@@ -7,7 +7,7 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, ROOT)
 
 import ultralytics
-print("✅ 当前使用的 ultralytics 路径:", ultralytics.__file__)
+print("当前使用的 ultralytics 路径:", ultralytics.__file__)
 
 from ultralytics import YOLO
 
@@ -32,7 +32,7 @@ def main():
     pdt_lh_name = "PDT_LH_stage3"
 
     print("=" * 80)
-    print("🎯 三阶段连续迁移/微调训练启动")
+    print("三阶段连续迁移/微调训练启动")
     print("=" * 80)
     print("初始模型架构:", model_cfg)
     print("运行设备:", device)
@@ -45,12 +45,12 @@ def main():
     # ==================== STAGE 1: Crop ====================
     if os.path.exists(stage1_weights):
         print("=" * 80)
-        print("✅ 检测到 Stage 1 权重已存在，跳过 Crop 训练")
+        print("检测到Stage 1权重已存在，跳过Crop训练--")
         print("权重文件:", stage1_weights)
         print("=" * 80)
     else:
         print("=" * 80)
-        print("🔥 [STAGE 1/3] 开始训练近景作物数据集 Crop")
+        print("[STAGE 1/3] 开始训练近景作物数据集 Crop")
         print("数据集 YAML:", crop_data)
         print("=" * 80)
 
@@ -74,19 +74,19 @@ def main():
         raise FileNotFoundError(f"❌ Stage 1 未生成权重文件: {stage1_weights}")
 
     print("=" * 80)
-    print("✅ Stage 1 完成")
+    print("Stage 1 完成")
     print("权重文件:", stage1_weights)
     print("=" * 80)
 
     # ==================== STAGE 2: PDT/LL ====================
     if os.path.exists(stage2_weights):
         print("=" * 80)
-        print("✅ 检测到 Stage 2 权重已存在，跳过 PDT_LL 训练")
+        print("检测到 Stage 2 权重已存在，跳过 PDT_LL 训练")
         print("权重文件:", stage2_weights)
         print("=" * 80)
     else:
         print("=" * 80)
-        print("🚀 [STAGE 2/3] 开始迁移训练远景 PDT/LL 数据集")
+        print("[STAGE 2/3] 开始迁移训练远景 PDT/LL 数据集")
         print("数据集 YAML:", pdt_ll_data)
         print("初始化权重:", stage1_weights)
         print("=" * 80)
@@ -112,19 +112,19 @@ def main():
         raise FileNotFoundError(f"❌ Stage 2 未生成权重文件: {stage2_weights}")
 
     print("=" * 80)
-    print("✅ Stage 2 完成")
+    print("Stage 2 完成")
     print("权重文件:", stage2_weights)
     print("=" * 80)
 
     # ==================== STAGE 3: PDT/LH ====================
     if os.path.exists(stage3_weights):
         print("=" * 80)
-        print("✅ 检测到 Stage 3 权重已存在，跳过 PDT_LH 训练")
+        print("检测到 Stage 3 权重已存在，跳过 PDT_LH 训练")
         print("权重文件:", stage3_weights)
         print("=" * 80)
     else:
         print("=" * 80)
-        print("🚀 [STAGE 3/3] 开始迁移训练远景 PDT/LH 数据集")
+        print("[STAGE 3/3] 开始迁移训练远景 PDT/LH 数据集")
         print("数据集 YAML:", pdt_lh_data)
         print("初始化权重:", stage2_weights)
         print("=" * 80)
@@ -147,7 +147,7 @@ def main():
         )
 
     print("=" * 80)
-    print("🎉 三阶段训练全部完成")
+    print("三阶段训练全部完成")
     print("Stage 1 近景权重:", stage1_weights)
     print("Stage 2 PDT/LL 权重:", stage2_weights)
     print("Stage 3 PDT/LH 权重:", stage3_weights)
