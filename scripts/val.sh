@@ -4,7 +4,7 @@ set -euo pipefail
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/Common.sh"
 
 MODEL="${MODEL:-weights/best.pt}"
-DATA="${DATA:-data/Crop/data.yaml}"
+DATA="${DATA:-datasets/Crop/data.yaml}"
 SPLIT="${SPLIT:-test}"
 IMGSZ="${IMGSZ:-640}"
 DEVICE="${DEVICE:-0}"

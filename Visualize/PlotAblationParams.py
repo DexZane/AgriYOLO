@@ -1,12 +1,12 @@
 """
 消融实验模型参数量对比折线图
 ----------------------------
-数据来源: README.md 消融实验表格 + ablation_study.py 配置
+数据来源: README.md 消融实验表格 + AblationStudy.py 配置
 对应 YAML 配置文件:
-  Stage 1: yolov10s_baseline.yaml    (Baseline)
-  Stage 2: yolov10s_P2_ADSA.yaml     (+ ADSA)
-  Stage 3: yolov10s_P2_CADFM.yaml    (+ TAL-FFN)
-  Stage 4: yolov10s_TAL_FFN.yaml     (+ SimAM = AgriYOLO)
+  Stage 1: YoloV10sBaseline.yaml    (Baseline)
+  Stage 2: YoloV10sP2ADSA.yaml      (+ ADSA)
+  Stage 3: YoloV10sP2CADFM.yaml     (+ TAL-FFN)
+  Stage 4: YoloV10sTalFFN.yaml      (+ SimAM = AgriYOLO)
 """
 import os
 import matplotlib

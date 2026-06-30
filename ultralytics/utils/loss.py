@@ -201,7 +201,25 @@ class v8DetectionLoss:
     def __call__(self, preds, batch):
         """Calculate the sum of the loss for box, cls and dfl multiplied by batch size."""
         loss = torch.zeros(3, device=self.device)  # box, cls, dfl
-        feats = preds[1] if isinstance(preds, tuple) else preds
+        # Compatibility patch for YOLOv10-style Detect heads.
+        # YOLOv10 may return a dict during training, e.g.
+        # {"one2many": feats, "one2one": feats}, while v8DetectionLoss expects list[Tensor].
+        if isinstance(preds, tuple):
+            preds = preds[1]
+
+        if isinstance(preds, dict):
+            if "one2many" in preds:
+                preds = preds["one2many"]
+            elif "one2one" in preds:
+                preds = preds["one2one"]
+            else:
+                preds = next(iter(preds.values()))
+
+        # Some heads may still wrap features in a tuple after branch selection.
+        if isinstance(preds, tuple):
+            preds = preds[1] if len(preds) > 1 else preds[0]
+
+        feats = preds
         pred_distri, pred_scores = torch.cat([xi.view(feats[0].shape[0], self.no, -1) for xi in feats], 2).split(
             (self.reg_max * 4, self.nc), 1
         )

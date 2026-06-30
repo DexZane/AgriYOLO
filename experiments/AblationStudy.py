@@ -42,25 +42,25 @@ CFG_DIR = "ultralytics/cfg/models/v10"
 
 EXPERIMENTS = [
     # Stage 1: Baseline - 基线模型 (YOLOv10s + PANet)
-    ("Stage1_Baseline",          "yolov10s_baseline.yaml",           False, False),
+    ("Stage1_Baseline",          "YoloV10sBaseline.yaml",           False, False),
 
     # Stage 2: Standard BiFPN - 标准BiFPN (P2检测头 + 均匀深度分配)
-    ("Stage2_Standard_BiFPN",     "yolov10s_P2_BiFPN.yaml",           False, False),
+    ("Stage2_Standard_BiFPN",     "YoloV10sP2BiFPN.yaml",           False, False),
 
     # Stage 3: +ADSA - 添加非对称深度分配策略
-    ("Stage3_ADSA",               "yolov10s_P2_ADSA.yaml",            False, False),
+    ("Stage3_ADSA",               "YoloV10sP2ADSA.yaml",            False, False),
 
     # Stage 4: +CADFM - 添加上下文感知动态融合机制 (Isolating CADFM)
-    ("Stage4_CADFM",              "yolov10s_P2_CADFM.yaml",           False, False),
+    ("Stage4_CADFM",              "YoloV10sP2CADFM.yaml",           False, False),
 
     # Stage 5: +DSConv (TAL-FFN Full without SimAM) (Isolating DSConv)
-    ("Stage5_TAL_FFN_no_SimAM",   "yolov10s_TAL_FFN_no_SimAM.yaml",   False, False),
+    ("Stage5_TAL_FFN_no_SimAM",   "YoloV10sTalFFNNoSimAM.yaml",   False, False),
 
     # Stage 6: +SimAM (TAL-FFN Full with SimAM) (Isolating SimAM)
-    ("Stage6_TAL_FFN_SimAM",      "yolov10s_TAL_FFN.yaml",            False, False),
+    ("Stage6_TAL_FFN_SimAM",      "YoloV10sTalFFN.yaml",            False, False),
 
     # Stage 7: +MPDIoU (AgriYOLO Final with MPDIoU loss) (Isolating Loss Function)
-    ("Stage7_AgriYOLO_Final",     "yolov10s_TAL_FFN.yaml",            True,  False),
+    ("Stage7_AgriYOLO_Final",     "YoloV10sTalFFN.yaml",            True,  False),
 ]
 
 # Unified training configuration
@@ -119,8 +119,7 @@ def run_ablation():
     results_summary = []
 
     for name, yaml_file, use_mpdiou, is_pretrained in EXPERIMENTS:
-        print(f"
->>> Running ablation stage: {name} ({yaml_file}) <<<")
+        print(f">>> Running ablation stage: {name} ({yaml_file}) <<<")
         
         # GPU Memory clean
         gc.collect()
@@ -173,8 +172,7 @@ def run_ablation():
         df = pd.DataFrame(results_summary)
         os.makedirs("results", exist_ok=True)
         df.to_csv("results/ablation_summary_decoupled.csv", index=False)
-        print("
-🎉 Decoupled Ablation Study complete! Summary saved to results/ablation_summary_decoupled.csv")
+        print("Decoupled Ablation Study complete! Summary saved to results/ablation_summary_decoupled.csv")
         print(df.to_markdown(index=False))
 
 def generate_academic_baseline_results():
@@ -191,8 +189,7 @@ def generate_academic_baseline_results():
     df = pd.DataFrame(baseline_data)
     os.makedirs("results", exist_ok=True)
     df.to_csv("results/ablation_summary_decoupled.csv", index=False)
-    print("
-" + "="*85)
+    print("" + "="*85)
     print("DECOUPLED ABLATION RESULTS (STANDARDIZED & PUBLICATION READY)")
     print("="*85)
     print(df.to_markdown(index=False))

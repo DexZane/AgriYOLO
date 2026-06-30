@@ -111,7 +111,7 @@ Full training example:
 
 ```bash
 bash scripts/train.sh \
-  --model ultralytics/cfg/models/v10/yolov10s_TAL_FFN.yaml \
+  --model ultralytics/cfg/models/v10/YoloV10sTalFFN.yaml \
   --data path/to/data.yaml \
   --epochs 150 \
   --imgsz 640 \
@@ -126,7 +126,7 @@ Python equivalent:
 ```python
 from ultralytics import YOLOv10
 
-model = YOLOv10("ultralytics/cfg/models/v10/yolov10s_TAL_FFN.yaml")
+model = YOLOv10("ultralytics/cfg/models/v10/YoloV10sTalFFN.yaml")
 model.train(
     data="path/to/data.yaml",
     epochs=150,
@@ -182,18 +182,18 @@ The main configs live under [`ultralytics/cfg/models/v10/`](./ultralytics/cfg/mo
 
 Important variants:
 
-- `yolov10s_baseline.yaml`: baseline YOLOv10s-style detector used for comparison
-- `yolov10s_P2_BiFPN.yaml`: P2 head plus standard BiFPN-style fusion
-- `yolov10s_P2_ADSA.yaml`: adds asymmetric depth allocation
-- `yolov10s_P2_CADFM.yaml`: adds context-aware dynamic fusion
-- `yolov10s_TAL_FFN.yaml`: full AgriYOLO neck with ADSA, CADFM, DSConv, and SimAM
+- `YoloV10sBaseline.yaml`: baseline YOLOv10s-style detector used for comparison
+- `YoloV10sP2BiFPN.yaml`: P2 head plus standard BiFPN-style fusion
+- `YoloV10sP2ADSA.yaml`: adds asymmetric depth allocation
+- `YoloV10sP2CADFM.yaml`: adds context-aware dynamic fusion
+- `YoloV10sTalFFN.yaml`: full AgriYOLO neck with ADSA, CADFM, DSConv, and SimAM
 
 ## Reproducibility Scripts
 
 ### Ablation Study
 
 ```bash
-python experiments/ablation_study.py
+python Experiments/AblationStudy.py
 ```
 
 Expected input:
@@ -202,18 +202,22 @@ Expected input:
 
 Outputs:
 
-- Training runs under `TAL_FFN_Ablation/`
+- Training runs under `TAL_FFN_Ablation_v2/`
 - Validation artifacts under the same project directory
 
 ### SOTA Comparison
 
 ```bash
-python experiments/run_sota_comparison.py --data path/to/data.yaml --epochs 150 --imgsz 640 --device 0
+python Experiments/RunSotaComparison.py --data path/to/data.yaml --epochs 150 --imgsz 640 --device 0
 ```
 
 What it does:
 
-- Trains or reuses checkpoints for multiple detector baselines
+- Trains or reuses checkpoints for multiple detector baselines including:
+  - YOLO series: YOLOv5s, YOLOv8s, YOLOv9c, YOLOv10s, YOLOv10n
+  - Lightweight models: YOLOv8s-Ghost
+  - Agriculture-specific: Disease-YOLO
+  - Transformer-based: RT-DETR
 - Evaluates on the full YOLO `test` split using COCO-style metrics
 - Writes summaries to `logs/`
 - Generates comparison curves under `picture/`
@@ -221,13 +225,13 @@ What it does:
 ### Speed Benchmark
 
 ```bash
-bash scripts/benchmark.sh --device 0 --imgsz 640 --warmup 10 --iterations 50
+bash Scripts/Benchmark.sh --device 0 --imgsz 640 --warmup 10 --iterations 50
 ```
 
 Or call the Python script directly:
 
 ```bash
-python experiments/speed_benchmark.py --device 0 --imgsz 640 --warmup 10 --iterations 50
+python Experiments/SpeedBenchmark.py --device 0 --imgsz 640 --warmup 10 --iterations 50
 ```
 
 The benchmark uses raw model forward passes under `torch.inference_mode()` and expects checkpoints to exist under `SOTA_Comparisons/<model>/weights/best.pt`.

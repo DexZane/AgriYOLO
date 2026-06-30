@@ -1,3 +1,4 @@
+from ultralytics.nn.modules.DynamicBifpn import TALFFN
 # Ultralytics YOLO 🚀, AGPL-3.0 license
 
 import contextlib
