@@ -108,9 +108,9 @@ venv/
 ENV/
 env.bak/
 venv.bak/
-EXPERIMENT_MANUAL.md
-PaperReferences.md
-.gitignore
+./EXPERIMENT_MANUAL.md
+./PaperReferences.md
+./.gitignore
 # Spyder project settings
 .spyderproject
 .spyproject
