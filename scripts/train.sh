@@ -4,7 +4,7 @@ set -euo pipefail
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/Common.sh"
 
 MODEL="${MODEL:-ultralytics/cfg/models/v10/YoloV10sTalFFN.yaml}"
-DATA="${DATA:-datasets/Crop/data.yaml}"
+DATA="${DATA:-datasets/PlantDoc/data.yaml}"
 EPOCHS="${EPOCHS:-150}"
 IMGSZ="${IMGSZ:-640}"
 BATCH="${BATCH:-16}"
@@ -20,15 +20,15 @@ AMP="${AMP:-true}"
 # 格式: "name:data_yaml_path:epochs:batch[,name2:...]"
 # - 每个数据集完全独立训练，每次都从 MODEL 重新初始化架构
 # - 不传递上一个数据集的权重（非迁移学习，非微调）
-# Crop  : 单目标近景，27类作物病害
-# PDT/LH: 多目标远景，1类，LH子集（Low-density High-resolution）
-# PDT/LL: 多目标远景，1类，LL子集（Low-resolution Large-scale）
-MULTI_DATASETS="${MULTI_DATASETS:-Crop:datasets/Crop/data.yaml:150:16,PDT_LH:datasets/PDT/LH/PDT.yaml:150:16,PDT_LL:datasets/PDT/LL/PDT.yaml:150:16}"
+# PlantDoc: 农业近景检测预训练
+# PDT/LH : 多目标远景，1类，LH子集（Low-density High-resolution）
+# PDT/LL : 多目标远景，1类，LL子集（Low-resolution Large-scale）
+MULTI_DATASETS="${MULTI_DATASETS:-PlantDoc:datasets/PlantDoc/data.yaml:80:8,PDT_LH:datasets/PDT/LH/PDT.yaml:150:16,PDT_LL:datasets/PDT/LL/PDT.yaml:150:16}"
 
 usage() {
   cat <<'EOF'
 Usage:
-  bash Scripts/Train.sh [options]
+  bash scripts/train.sh [options]
 
 默认行为（无参数）：
   依次独立训练三个数据集：Crop、PDT/LH、PDT/LL
@@ -55,17 +55,17 @@ Options:
 Environment variables with the same names (MODEL, DATA, EPOCHS, ...) are also supported.
 
 Examples:
-  # 默认：依次独立训练 Crop、PDT_LH、PDT_LL（推荐）
-  bash Scripts/Train.sh
+  # 默认：依次独立训练 PlantDoc、PDT_LH、PDT_LL（推荐）
+  bash scripts/train.sh
 
   # 仅训练单个数据集
-  bash Scripts/Train.sh --multi-datasets "" --data datasets/Crop/data.yaml --epochs 150
+  bash scripts/train.sh --multi-datasets "" --data datasets/PlantDoc/data.yaml --epochs 80
 
   # 自定义多数据集
-  bash Scripts/Train.sh --multi-datasets "Crop:datasets/Crop/data.yaml:150:16,PDT_LH:datasets/PDT/LH/PDT.yaml:100:8"
+  bash scripts/train.sh --multi-datasets "PlantDoc:datasets/PlantDoc/data.yaml:80:8,PDT_LH:datasets/PDT/LH/PDT.yaml:100:8"
 
   # 指定不同设备
-  bash Scripts/Train.sh --device 1
+  bash scripts/train.sh --device 1
 EOF
 }
 

@@ -9,4 +9,4 @@ echo "============================================================"
 
 export PYTHONPATH="$(pwd):$PYTHONPATH"
 
-python3 Scripts/TrainTwostageLHRunner.py
+python3 scripts/TrainTwostageLHRunner.py

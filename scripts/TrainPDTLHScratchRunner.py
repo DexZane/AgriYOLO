@@ -6,9 +6,6 @@ import torch
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, ROOT)
 
-import ultralytics
-print("当前使用的 ultralytics 路径:", ultralytics.__file__)
-
 from ultralytics import YOLO
 
 
@@ -21,8 +18,8 @@ def main():
     else:
         device = "cpu"
 
-    root_runs = "runs/TrainTwostage"
-    pdt_lh_data = "datasets/PDT/LH/PDT.yaml"
+    root_runs = os.path.join(ROOT, "runs", "TrainTwostage")
+    pdt_lh_data = os.path.join(ROOT, "datasets", "PDT", "LH", "PDT.yaml")
     run_name = "PDT_LH_scratch_baseline"
 
     print("=" * 80)
