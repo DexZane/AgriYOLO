@@ -68,7 +68,7 @@ from .conv import (
 )
 from .head import OBB, Classify, Detect, Pose, RTDETRDecoder, Segment, WorldDetect, v10Detect
 from .DynamicBifpn import TALFFN, DynamicWeightedBiFPN, FeatureSelect
-from .SimAm import SimAM
+from .simam import SimAM
 from .transformer import (
     AIFI,
     MLP,
